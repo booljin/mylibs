@@ -29,7 +29,10 @@ int connect_manager::get(int fd, CONNECT_INFO **info)
 {
     std::map<int, CONNECT_INFO>::iterator it = m_map.find(fd);
     if(it == m_map.end())
+    {
+        *info = NULL;
         RETURN_ERR(-1, "fd not exist when remove from connect_manager %d", fd);
+    }
     *info = &(it->second);
     return 0;
 }
