@@ -1,5 +1,5 @@
-﻿#include __CONNECT_MANAGER_H__
-#include __CONNECT_MANAGER_H__
+﻿#ifndef __CONNECT_MANAGER_H__
+#define __CONNECT_MANAGER_H__
 
 #include <map>
 
