@@ -11,8 +11,8 @@ struct CONNECT_INFO;
 class epoll_wrap
 {
 public:
-    CEpollWrap();
-    ~CEpollWrap();
+    epoll_wrap();
+    ~epoll_wrap();
     void init(connect_manager *connect_manager, unsigned int max_connect);
     int create();
     int listen(const char *ip, unsigned short port);
@@ -42,7 +42,7 @@ private:
     char m_err_msg[256];
 };
 
-const char *get_err_msg()
+const char *epoll_wrap::get_err_msg()
 {
     return m_err_msg;
 }

@@ -5,8 +5,8 @@
 
 enum
 {
-    FD_TYPE_LISTEN;
-    FD_TYPE_NORMAL;
+    FD_TYPE_LISTEN,
+    FD_TYPE_NORMAL,
 };
 
 struct CONNECT_INFO
@@ -25,8 +25,10 @@ public:
     int get(int fd, CONNECT_INFO **info);
     
     inline const char *get_err_msg();
+    void dump();
 private:
     std::map<int, CONNECT_INFO> m_map;
+    int m_err_code;
     char m_err_msg[256];
 };
 
