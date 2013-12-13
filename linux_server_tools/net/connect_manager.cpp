@@ -1,4 +1,5 @@
 ﻿#include "connect_manager.h"
+#include <stdio.h>
 
 #define RETURN_ERR(errcode, errstr, ...) \
     {\
@@ -35,4 +36,13 @@ int connect_manager::get(int fd, CONNECT_INFO **info)
     }
     *info = &(it->second);
     return 0;
+}
+
+void connect_manager::dump()
+{
+    for(std::map<int, CONNECT_INFO>::iterator it = m_map.begin();
+        it != m_map.end(); ++it)
+    {
+        printf("fd  :  %d, type : %d\n", it->second.fd, it->second.type);
+    }
 }

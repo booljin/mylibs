@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <string.h>
 
 int socket_set_reuse(int fd)
 {
@@ -32,14 +33,14 @@ int socket_close(int fd)
     return 0;
 }
 
-int set_sockaddr(struct sockaddr_in *sockaddr, const char *ip, unsigned short port);
+int set_sockaddr(struct sockaddr_in *sockaddr, const char *ip, unsigned short port)
 {
-    memset(&sockaddr, 0, sizeof(sockaddr));
+    memset(sockaddr, 0, sizeof(sockaddr_in));
     if(ip == NULL)
-        sockaddr.sin_addr.s_addr = INADDR_ANY;
-    else if(!inet_aton(ip, &sockaddr.sin_addr.s_addr))
+        sockaddr->sin_addr.s_addr = htonl(INADDR_ANY);
+    else if(!inet_aton(ip, &sockaddr->sin_addr))
         return -1;
-    sockaddr.sin_family = AF_INET;
-    sockaddr.sin_port = htons(port);
+    sockaddr->sin_family = AF_INET;
+    sockaddr->sin_port = htons(port);
     return 0;
 }

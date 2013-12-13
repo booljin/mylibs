@@ -3,6 +3,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "socket_util.h"
 #include "connect_manager.h"
@@ -10,7 +13,7 @@
 #define RETURN_ERR(errcode, errstr, ...) \
     {\
         m_err_code = errcode;\
-        snprintf(m_err_msg, sizeof(m_err_msg), (errstr), __VA_ARGS__);\
+        snprintf(m_err_msg, sizeof(m_err_msg), (errstr), ##__VA_ARGS__);\
         return -1;\
     }
 
@@ -24,11 +27,12 @@ epoll_wrap::epoll_wrap()
 
 epoll_wrap::~epoll_wrap()
 {
-    for(std::vector<int>::iterator it = m_listen_sockets.begin();
+/*    for(std::vector<int>::iterator it = m_listen_sockets.begin();
         it != m_listen_sockets.end(); ++it)
     {
         close_socket(*it);
     }
+*/
     if(m_epoll_fd >= 0)
     {
         close(m_epoll_fd);
@@ -50,20 +54,19 @@ int epoll_wrap::create()
 {
     if(m_connect_manager == NULL)
         RETURN_ERR(-1, "epoll not init when create");
-    int ret = ::epoll_create(max_connect);
+    int ret = ::epoll_create(m_event_max);
     if(ret < 0)
     {
         RETURN_ERR(-1, "epoll_create(%u) err:%d:%s", 
-            max_connect, errno, strerror(errno));
+            m_event_max, errno, strerror(errno));
     }
     m_epoll_fd = ret;
-    m_events = (struct epoll_event *)malloc((sizeof(struct epoll_event) * max_connect));
+    m_events = (struct epoll_event *)malloc((sizeof(struct epoll_event) * m_event_max));
     if(m_events == NULL)
     {
         RETURN_ERR(-1, "malloc events err. max = %d", 
-            max_connect);
+            m_event_max);
     }
-    m_event_max = max_connect;
     return 0;
 }
 
@@ -101,7 +104,7 @@ int epoll_wrap::listen(const char *ip, unsigned short port)
         RETURN_ERR(-1, "listen err : %d, %s",
             errno, strerror(errno));
     }
-    if(add_event(fd, EPOLLIN) != 0)
+    if(add_event(temp_socket, EPOLLIN) != 0)
     {
         socket_close(temp_socket);
         return -1;
@@ -109,7 +112,7 @@ int epoll_wrap::listen(const char *ip, unsigned short port)
     CONNECT_INFO info;
     info.fd = temp_socket;
     info.type = FD_TYPE_LISTEN;
-    if(m_connect_manager.insert(fd, info) != 0)
+    if(m_connect_manager->insert(temp_socket, info) != 0)
     {
         del_event(temp_socket);
         socket_close(temp_socket);
@@ -118,16 +121,18 @@ int epoll_wrap::listen(const char *ip, unsigned short port)
     return 0;
 }
 
-int do_epoll()
+int epoll_wrap::do_poll()
 {
     int retry_num = 3;
-    if(m_epoll_fd < 0 || m_listen_sockets.)
+    if(m_epoll_fd < 0)
     {
         RETURN_ERR(-1, "epoll not init");
     }
+    int ret;
+    int some_err = 0;
     for(int i = 0; i < retry_num; ++i)
     {
-        ret = epoll_wait(m_epoll_fd, m_events, m_event_max, 1000/*暂时默认1s超时*/)；
+        ret = epoll_wait(m_epoll_fd, m_events, m_event_max, 1000/*暂时默认1s超时*/);
         if(ret < 0)
         {
             if(errno == EINTR)
@@ -139,30 +144,31 @@ int do_epoll()
                 RETURN_ERR(-1, "epoll_wait %d %s", errno, strerror(errno));
             }
         }
-        int some_err = 0;
         for(int j = 0; j < ret; ++j)
         {
             int fd = m_events[i].data.fd;
             bool in = (m_events[i].events & EPOLLIN) != 0;
             bool out = (m_events[i].events & EPOLLOUT) != 0;
             CONNECT_INFO *info;
-            m_connect_manager.get(fd, &info);
+            m_connect_manager->get(fd, &info);
             if(info == NULL)
             {
                 snprintf(m_err_msg, sizeof(m_err_msg), "fd not find");
                 m_err_code = -1;
                 ++some_err;
+                continue;
             }
             if((m_events[i].events & EPOLLERR) 
                 || (m_events[i].events & EPOLLHUP))
             {
                 snprintf(m_err_msg, sizeof(m_err_msg), "fd %d poll err %s", 
-                    &fd, (m_events[i].event & EPOLLERR != 0) ? "ERR" : "HUP");
+                    fd, ((m_events[i].events & EPOLLERR) != 0) ? "ERR" : "HUP");
                 m_err_code = -1;
                 ++some_err;
                 del_event(fd);
                 m_connect_manager->remove(fd);
                 socket_close(fd);
+                continue;
             }
             if(in)
             {
@@ -191,8 +197,8 @@ int do_epoll()
                     ++some_err;
                 }
             }
-            break;
         }
+        break;
     }
     if(ret < 0)
         RETURN_ERR(-1, "epoll_wait more than retry num");
@@ -209,6 +215,7 @@ int epoll_wrap::add_event(int fd, unsigned int flag)
     }
     struct epoll_event ev;
     // 不使用EPOLLET
+    ev.events = 0;
     ev.events |= flag;
     ev.data.fd = fd;
     int ret = epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, fd, &ev);
@@ -231,6 +238,7 @@ int epoll_wrap::del_event(int fd)
 int epoll_wrap::modify_event(int fd, unsigned int flag)
 {
     struct epoll_event ev;
+    ev.events = 0;
     ev.events |= flag;
     ev.data.fd = fd;
     int ret = epoll_ctl(m_epoll_fd, EPOLL_CTL_MOD, fd, &ev);
@@ -244,9 +252,10 @@ int epoll_wrap::on_listen(int fd)
     int retry_num = 3;
     struct sockaddr_in sin;
     socklen_t sin_len = sizeof(sin);
+    int ret = 0;
     for(int i = 0; i < retry_num; ++i)
     {
-        ret = ::accept(fd, (sockaddr *)&sin, sin_len);
+        ret = ::accept(fd, (sockaddr *)&sin, &sin_len);
         if(ret < 0)
         {
             if(errno == EINTR)
@@ -256,7 +265,7 @@ int epoll_wrap::on_listen(int fd)
         break;
     }
     if(ret < 0)
-        RETURN_ERR("too many interrupts when accept");
+        RETURN_ERR(-1, "too many interrupts when accept");
     if(socket_set_noblock(ret) != 0)
     {
         socket_close(ret);
@@ -270,10 +279,10 @@ int epoll_wrap::on_listen(int fd)
     CONNECT_INFO info;
     info.fd = ret;
     info.type = FD_TYPE_NORMAL;
-    if(m_connect_manager.insert(fd, info) != 0)
+    if(m_connect_manager->insert(ret, info) != 0)
     {
-        del_event(temp_socket);
-        socket_close(temp_socket);
+        del_event(ret);
+        socket_close(ret);
         RETURN_ERR(-1, "%s", m_connect_manager->get_err_msg());
     }
     return 0;
@@ -282,15 +291,21 @@ int epoll_wrap::on_listen(int fd)
 int epoll_wrap::on_read(CONNECT_INFO *con)
 {
     char a[1024];
-    int ret = ::recv(fd, a, 1024, 0);
+    int ret = ::recv(con->fd, a, 1024, 0);
     if(ret <= 0)
     {
         // ret < 0: EINTR/EAGAIN/EWOULDBLOCK
         printf("recv_end or err\n");
-        //del_event(fd);
-        //close_socket(fd);
-        return -1;
+        del_event(con->fd);
+        socket_close(con->fd);
+        m_connect_manager->remove(con->fd);
+        return 0;
     }
     printf("recv %s\n", a);
+    return 0;
+}
+
+int epoll_wrap::on_write(CONNECT_INFO *con)
+{
     return 0;
 }
