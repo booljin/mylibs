@@ -25,7 +25,7 @@ public:
     int add_event(int fd, unsigned int flag);
     int del_event(int fd);
     int modify_event(int fd, unsigned int flag);
-    //int send_data(int fd, const char *data, unsigned int len);
+    int send_to(int fd, const char *data, unsigned int len);
     //int close_fd(int fd);
     
 private:

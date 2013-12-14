@@ -8,6 +8,11 @@
         return -1;\
     }
 
+connect_manager::connect_manager()
+{
+    m_net_core = NULL;
+}
+    
 int connect_manager::insert(int fd, CONNECT_INFO info)
 {
     std::map<int, CONNECT_INFO>::iterator it = m_map.find(fd);
@@ -45,4 +50,20 @@ void connect_manager::dump()
     {
         printf("fd  :  %d, type : %d\n", it->second.fd, it->second.type);
     }
+}
+
+int connect_manager::send_to(int fd, const char *buff, unsigned int len)
+{
+    if(m_net_core == NULL)
+        RETURN_ERR(-1, "connect manager has no net core");
+    std::map<int, CONNECT_INFO>::iterator it = m_map.find(fd);
+    if(it == m_map.end())
+    {
+        RETURN_ERR(-1, "fd %d not find while send", fd);
+    }
+    if(m_net_core->send_to(fd, const char *buf, unsigned int len) != 0)
+    {
+        RETURN_ERR(-1, "%s", m_net_core->get_err_msg());
+    }
+    return 0;
 }

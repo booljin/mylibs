@@ -309,3 +309,46 @@ int epoll_wrap::on_write(CONNECT_INFO *con)
 {
     return 0;
 }
+
+int epoll_wrap::send_to(int fd, const char *buff, unsigned int len)
+{
+    // TODO: 先不处理发送缓存
+    unsigned left = len;
+    const char *p = buff;
+    while(left > 0)
+    {
+        int ret = ::write(fd, p, left);
+        if(ret < 0)
+        {
+            if(errno == EINTR)
+            {
+                continue;
+            }
+            else if(errno == EPIPE)
+            {
+                del_event(fd);
+                socket_close(fd);
+                RETURN_ERR(-1, "fd %d write EPIPE closed", fd);
+            }
+            else if(errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                break;
+            }
+            else
+            {
+                break;
+            }
+        }
+        else
+        {
+            p += ret;
+            len -= ret;
+        }
+    }
+    // TODO: 剩下的要写入buff
+    if(ret > 0)
+    {
+        RETURN_ERR(-1, "left something");
+    }
+    return 0;
+}

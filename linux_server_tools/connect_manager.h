@@ -3,6 +3,8 @@
 
 #include <map>
 
+class epoll_wrap;
+
 enum
 {
     FD_TYPE_LISTEN,
@@ -24,10 +26,15 @@ public:
     int remove(int fd);
     int get(int fd, CONNECT_INFO **info);
     
+    int send_to(int fd, const char *buff, unsigned int len);
+    
     inline const char *get_err_msg();
     void dump();
 private:
+public:
     std::map<int, CONNECT_INFO> m_map;
+private:
+    epoll_wrap *m_net_core;
     int m_err_code;
     char m_err_msg[256];
 };

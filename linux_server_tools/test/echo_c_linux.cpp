@@ -25,15 +25,25 @@ int main()
         close(socketfd);
         return 0;
     }
-    char msg[4] = {'a', 'b', 'c', '\0'};
-    int len = sizeof(msg);
-    int ret = send(socketfd, msg, len, 0);
-    if(ret < 0)
+    //char msg[4] = {'a', 'b', 'c', '\0'};
+    //int len = sizeof(msg);
+    //int ret = send(socketfd, msg, len, 0);
+    //if(ret < 0)
+    //{
+    //    printf("send err %d\n", errno);
+    //    close(socketfd);
+    //    return 0;
+    //}
+    char buff[100];
+    int ret = ::recv(socketfd, buff, 100, 0);
+    if(ret <= 0)
     {
-        printf("send err %d\n", errno);
-        close(socketfd);
+        printf("ret = %d\n",ret);
         return 0;
     }
+    else
+        printf("%s\n", buff);
+    
     close(socketfd);
     return 0;
 }
