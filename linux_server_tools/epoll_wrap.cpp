@@ -161,8 +161,9 @@ int epoll_wrap::do_poll()
             if((m_events[i].events & EPOLLERR) 
                 || (m_events[i].events & EPOLLHUP))
             {
-                snprintf(m_err_msg, sizeof(m_err_msg), "fd %d poll err %s", 
-                    fd, ((m_events[i].events & EPOLLERR) != 0) ? "ERR" : "HUP");
+                snprintf(m_err_msg, sizeof(m_err_msg), "fd %d poll err %s %d", 
+                    fd, ((m_events[i].events & EPOLLERR) != 0) ? "ERR" : "HUP",
+                    m_events[i].events);
                 m_err_code = -1;
                 ++some_err;
                 del_event(fd);
@@ -193,6 +194,7 @@ int epoll_wrap::do_poll()
             {
                 if(on_write(info) != 0)
                 {
+                    printf("on write\n");
                     m_err_code = -1;
                     ++some_err;
                 }
@@ -295,7 +297,7 @@ int epoll_wrap::on_read(CONNECT_INFO *con)
     if(ret <= 0)
     {
         // ret < 0: EINTR/EAGAIN/EWOULDBLOCK
-        printf("recv_end or err\n");
+        printf("recv_end or err %d\n", ret);
         del_event(con->fd);
         socket_close(con->fd);
         m_connect_manager->remove(con->fd);
@@ -315,9 +317,10 @@ int epoll_wrap::send_to(int fd, const char *buff, unsigned int len)
     // TODO: 先不处理发送缓存
     unsigned left = len;
     const char *p = buff;
+    int ret;
     while(left > 0)
     {
-        int ret = ::write(fd, p, left);
+        ret = ::write(fd, p, left);
         if(ret < 0)
         {
             if(errno == EINTR)
@@ -342,11 +345,11 @@ int epoll_wrap::send_to(int fd, const char *buff, unsigned int len)
         else
         {
             p += ret;
-            len -= ret;
+            left -= ret;
         }
     }
     // TODO: 剩下的要写入buff
-    if(ret > 0)
+    if(left > 0)
     {
         RETURN_ERR(-1, "left something");
     }

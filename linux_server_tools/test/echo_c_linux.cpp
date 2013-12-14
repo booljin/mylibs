@@ -35,7 +35,7 @@ int main()
     //    return 0;
     //}
     char buff[100];
-    int ret = ::recv(socketfd, buff, 100, 0);
+    int ret = ::read(socketfd, buff, 100);
     if(ret <= 0)
     {
         printf("ret = %d\n",ret);
@@ -44,6 +44,9 @@ int main()
     else
         printf("%s\n", buff);
     
+    //sleep(2);
+    shutdown(socketfd, SHUT_RDWR);
     close(socketfd);
+    printf("close socket \n");
     return 0;
 }

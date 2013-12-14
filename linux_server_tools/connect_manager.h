@@ -22,6 +22,9 @@ struct CONNECT_INFO
 class connect_manager
 {
 public:
+    connect_manager();
+    void init(epoll_wrap *net_core);
+public:
     int insert(int fd, CONNECT_INFO info);
     int remove(int fd);
     int get(int fd, CONNECT_INFO **info);
